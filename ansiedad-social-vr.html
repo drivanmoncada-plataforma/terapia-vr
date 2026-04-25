@@ -1,0 +1,912 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TerapiaVR — Exposición Ansiedad Social</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { 
+    background: #0a0e1a; 
+    color: #e8e0d0; 
+    font-family: 'Georgia', serif;
+    overflow: hidden;
+  }
+  canvas { display: block; }
+
+  #ui-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #0a0e1a 0%, #111827 50%, #0d1520 100%);
+    z-index: 100;
+    transition: opacity 0.8s ease;
+  }
+
+  #ui-overlay.hidden {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .logo {
+    font-size: 11px;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #6b9eb8;
+    margin-bottom: 32px;
+  }
+
+  h1 {
+    font-size: clamp(24px, 5vw, 42px);
+    font-weight: 400;
+    color: #e8e0d0;
+    text-align: center;
+    line-height: 1.3;
+    margin-bottom: 12px;
+  }
+
+  .subtitle {
+    font-size: 13px;
+    color: #8a9ab0;
+    text-align: center;
+    margin-bottom: 48px;
+    max-width: 420px;
+    line-height: 1.7;
+  }
+
+  .panel {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 32px;
+    width: min(90vw, 480px);
+    margin-bottom: 24px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: #6b9eb8;
+    margin-bottom: 20px;
+  }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    gap: 16px;
+  }
+
+  .control-label {
+    font-size: 13px;
+    color: #c8c0b0;
+    flex: 1;
+  }
+
+  .control-label small {
+    display: block;
+    font-size: 11px;
+    color: #6a7a8a;
+    margin-top: 2px;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 140px;
+    height: 4px;
+    background: rgba(107, 158, 184, 0.2);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px; height: 16px;
+    border-radius: 50%;
+    background: #6b9eb8;
+    cursor: pointer;
+    transition: transform 0.2s;
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+  }
+
+  .value-badge {
+    font-size: 12px;
+    color: #6b9eb8;
+    min-width: 24px;
+    text-align: right;
+  }
+
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 4px;
+  }
+
+  .scenario-btn {
+    padding: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    color: #c8c0b0;
+    font-size: 12px;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.2s;
+    line-height: 1.4;
+  }
+
+  .scenario-btn:hover, .scenario-btn.active {
+    background: rgba(107, 158, 184, 0.12);
+    border-color: rgba(107, 158, 184, 0.4);
+    color: #e8e0d0;
+  }
+
+  .scenario-btn .icon { font-size: 18px; margin-bottom: 4px; display: block; }
+
+  .btn-start {
+    width: 100%;
+    padding: 16px;
+    background: linear-gradient(135deg, #6b9eb8, #4a7a9b);
+    border: none;
+    border-radius: 12px;
+    color: white;
+    font-size: 15px;
+    font-family: 'Georgia', serif;
+    cursor: pointer;
+    letter-spacing: 1px;
+    transition: all 0.3s;
+    margin-top: 8px;
+  }
+
+  .btn-start:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(107, 158, 184, 0.3);
+  }
+
+  .note {
+    font-size: 11px;
+    color: #4a5a6a;
+    text-align: center;
+    margin-top: 16px;
+    line-height: 1.6;
+  }
+
+  /* HUD en escena */
+  #scene-hud {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    z-index: 50;
+  }
+
+  #scene-hud.visible { display: flex; }
+
+  .hud-panel {
+    background: rgba(10, 14, 26, 0.85);
+    border: 1px solid rgba(107, 158, 184, 0.25);
+    border-radius: 12px;
+    padding: 14px 24px;
+    display: flex;
+    gap: 24px;
+    align-items: center;
+    backdrop-filter: blur(10px);
+  }
+
+  .hud-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .hud-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #6b9eb8;
+  }
+
+  .hud-value {
+    font-size: 16px;
+    color: #e8e0d0;
+  }
+
+  .btn-hud {
+    padding: 10px 20px;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    color: #c8c0b0;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-hud:hover {
+    background: rgba(107, 158, 184, 0.15);
+    color: #e8e0d0;
+  }
+
+  .btn-hud.primary {
+    background: rgba(107, 158, 184, 0.2);
+    border-color: rgba(107, 158, 184, 0.4);
+    color: #a0c8e0;
+  }
+
+  #breathing-guide {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    background: rgba(10,14,26,0.8);
+    border: 1px solid rgba(107,158,184,0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+  }
+
+  #breathing-guide.visible { display: flex; }
+
+  .breath-circle {
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    border: 2px solid #6b9eb8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: #6b9eb8;
+    animation: breathe 8s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    0%, 100% { transform: scale(0.8); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+  }
+
+  .breath-text {
+    font-size: 10px;
+    color: #6b9eb8;
+    letter-spacing: 1px;
+  }
+
+  #intensity-indicator {
+    position: fixed;
+    top: 24px;
+    left: 24px;
+    background: rgba(10,14,26,0.8);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+    z-index: 50;
+    backdrop-filter: blur(10px);
+    min-width: 140px;
+  }
+
+  #intensity-indicator.visible { display: flex; }
+
+  .intensity-label {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #6b9eb8;
+  }
+
+  .intensity-bar {
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .intensity-fill {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #4a9b6b, #e8c547, #e85447);
+    transition: width 1s ease;
+  }
+
+  .intensity-text {
+    font-size: 12px;
+    color: #c8c0b0;
+  }
+
+  #vr-btn-container {
+    text-align: center;
+    margin-top: 8px;
+  }
+</style>
+</head>
+<body>
+
+<!-- UI inicial -->
+<div id="ui-overlay">
+  <div class="logo">TerapiaVR · Dr. Iván Moncada</div>
+  <h1>Exposición a<br>Ansiedad Social</h1>
+  <p class="subtitle">Entorno de realidad virtual para terapia de exposición gradual.<br>Compatible con Meta Quest Browser (WebXR).</p>
+
+  <div class="panel">
+    <div class="panel-title">Escenario</div>
+    <div class="scenario-grid">
+      <div class="scenario-btn active" onclick="setScenario('cafe')" id="s-cafe">
+        <span class="icon">☕</span>Café concurrido
+      </div>
+      <div class="scenario-btn" onclick="setScenario('reunion')" id="s-reunion">
+        <span class="icon">👥</span>Reunión de trabajo
+      </div>
+      <div class="scenario-btn" onclick="setScenario('calle')" id="s-calle">
+        <span class="icon">🚶</span>Calle peatonal
+      </div>
+      <div class="scenario-btn" onclick="setScenario('sala')" id="s-sala">
+        <span class="icon">🎤</span>Hablar en público
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Parámetros de exposición</div>
+
+    <div class="control-row">
+      <div class="control-label">
+        Densidad de personas
+        <small>Cantidad de avatares en escena</small>
+      </div>
+      <input type="range" min="1" max="20" value="5" id="slider-personas" oninput="updateVal('personas',this.value)">
+      <div class="value-badge" id="val-personas">5</div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-label">
+        Proximidad
+        <small>Distancia mínima de avatares</small>
+      </div>
+      <input type="range" min="1" max="5" value="3" id="slider-prox" oninput="updateVal('prox',this.value)">
+      <div class="value-badge" id="val-prox">3m</div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-label">
+        Ruido ambiental
+        <small>Nivel de estimulación auditiva</small>
+      </div>
+      <input type="range" min="0" max="100" value="30" id="slider-ruido" oninput="updateVal('ruido',this.value)">
+      <div class="value-badge" id="val-ruido">30%</div>
+    </div>
+
+    <div class="control-row">
+      <div class="control-label">
+        Contacto visual
+        <small>Avatares que miran al paciente</small>
+      </div>
+      <input type="range" min="0" max="100" value="20" id="slider-contacto" oninput="updateVal('contacto',this.value)">
+      <div class="value-badge" id="val-contacto">20%</div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <button class="btn-start" onclick="startExperience()">▶ Iniciar sesión de exposición</button>
+    <div id="vr-btn-container"></div>
+  </div>
+
+  <div class="note">
+    En Meta Quest: Abrir en Quest Browser → Pulsar el botón VR para inmersión completa<br>
+    En PC: Vista previa en pantalla — usar ratón para orbitar
+  </div>
+</div>
+
+<!-- HUD en escena -->
+<div id="scene-hud">
+  <div class="hud-panel">
+    <div class="hud-item">
+      <div class="hud-label">Tiempo</div>
+      <div class="hud-value" id="hud-time">0:00</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Personas</div>
+      <div class="hud-value" id="hud-personas">5</div>
+    </div>
+    <div class="hud-item">
+      <div class="hud-label">Intensidad</div>
+      <div class="hud-value" id="hud-intensidad">Baja</div>
+    </div>
+    <button class="btn-hud" onclick="increaseIntensity()">↑ Aumentar</button>
+    <button class="btn-hud" onclick="decreaseIntensity()">↓ Reducir</button>
+    <button class="btn-hud primary" onclick="endSession()">✕ Finalizar</button>
+  </div>
+</div>
+
+<!-- Respiración guiada -->
+<div id="breathing-guide">
+  <div class="breath-circle" id="breath-circle">●</div>
+  <div class="breath-text" id="breath-text">INHALA</div>
+</div>
+
+<!-- Indicador de intensidad -->
+<div id="intensity-indicator">
+  <div class="intensity-label">Nivel SUDS</div>
+  <div class="intensity-bar">
+    <div class="intensity-fill" id="intensity-fill" style="width:20%"></div>
+  </div>
+  <div class="intensity-text" id="intensity-text">20 / 100</div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js';
+
+// ── Estado global ────────────────────────────────────────────────
+let scene, camera, renderer, xrSession = null;
+let avatars = [], clock, sessionTimer = 0;
+let params = {
+  personas: 5,
+  proximidad: 3,
+  ruido: 30,
+  contacto: 20,
+  escenario: 'cafe'
+};
+let suds = 20;
+let breathPhase = 0;
+let sessionActive = false;
+
+window.setScenario = (s) => {
+  params.escenario = s;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('s-' + s).classList.add('active');
+};
+
+window.updateVal = (key, val) => {
+  if (key === 'personas') { params.personas = parseInt(val); document.getElementById('val-personas').textContent = val; }
+  if (key === 'prox')     { params.proximidad = parseInt(val); document.getElementById('val-prox').textContent = val + 'm'; }
+  if (key === 'ruido')    { params.ruido = parseInt(val); document.getElementById('val-ruido').textContent = val + '%'; }
+  if (key === 'contacto') { params.contacto = parseInt(val); document.getElementById('val-contacto').textContent = val + '%'; }
+};
+
+// ── Inicializar Three.js ─────────────────────────────────────────
+function initScene() {
+  scene = new THREE.Scene();
+  clock = new THREE.Clock();
+
+  // Cámara
+  camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 200);
+  camera.position.set(0, 1.65, 0);
+
+  // Renderer con XR
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.xr.enabled = true;
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  document.body.appendChild(renderer.domElement);
+
+  // Botón VR nativo
+  if ('xr' in navigator) {
+    navigator.xr.isSessionSupported('immersive-vr').then(supported => {
+      if (supported) {
+        const btn = document.createElement('button');
+        btn.textContent = '🥽 Entrar en VR (Quest)';
+        btn.style.cssText = `
+          margin-top:12px; width:100%; padding:12px;
+          background:rgba(107,158,184,0.1); border:1px solid rgba(107,158,184,0.3);
+          border-radius:10px; color:#a0c8e0; font-size:13px;
+          cursor:pointer; font-family:Georgia,serif; letter-spacing:1px;
+        `;
+        btn.onclick = enterVR;
+        document.getElementById('vr-btn-container').appendChild(btn);
+      }
+    });
+  }
+
+  buildEnvironment();
+  window.addEventListener('resize', onResize);
+
+  // Órbita con ratón (PC preview)
+  let isDragging = false, lastX = 0, lastY = 0, yaw = 0, pitch = 0;
+  renderer.domElement.addEventListener('mousedown', e => { isDragging = true; lastX = e.clientX; lastY = e.clientY; });
+  renderer.domElement.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    yaw   -= (e.clientX - lastX) * 0.003;
+    pitch -= (e.clientY - lastY) * 0.003;
+    pitch = Math.max(-Math.PI/3, Math.min(Math.PI/3, pitch));
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = yaw;
+    camera.rotation.x = pitch;
+    lastX = e.clientX; lastY = e.clientY;
+  });
+  renderer.domElement.addEventListener('mouseup', () => isDragging = false);
+}
+
+// ── Entorno 3D ───────────────────────────────────────────────────
+function buildEnvironment() {
+  scene.fog = new THREE.FogExp2(0x8ba8c0, 0.025);
+  scene.background = new THREE.Color(0x7a9db5);
+
+  // Suelo
+  const floorGeo = new THREE.PlaneGeometry(40, 40);
+  const floorMat = new THREE.MeshLambertMaterial({ color: 0xc4b090 });
+  const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Paredes / ambiente según escenario
+  buildScenario(params.escenario);
+
+  // Iluminación
+  const ambient = new THREE.AmbientLight(0xffeedd, 0.7);
+  scene.add(ambient);
+
+  const sunLight = new THREE.DirectionalLight(0xfff4e0, 1.2);
+  sunLight.position.set(5, 10, 5);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(1024, 1024);
+  scene.add(sunLight);
+
+  const fillLight = new THREE.PointLight(0x88aaff, 0.4, 20);
+  fillLight.position.set(-5, 3, -5);
+  scene.add(fillLight);
+
+  // Generar avatares
+  spawnAvatars(params.personas, params.proximidad, params.contacto);
+}
+
+function buildScenario(tipo) {
+  // Limpiar escenario anterior
+  scene.children.filter(c => c.userData.scenery).forEach(c => scene.remove(c));
+
+  const wallMat = new THREE.MeshLambertMaterial({ color: 0xe8dcc8 });
+  const addBox = (w, h, d, x, y, z, color) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({color}));
+    m.position.set(x,y,z);
+    m.castShadow = true;
+    m.receiveShadow = true;
+    m.userData.scenery = true;
+    scene.add(m);
+    return m;
+  };
+
+  if (tipo === 'cafe') {
+    // Paredes
+    addBox(20,4,0.3, 0,2,-10, 0xe8dcc8);
+    addBox(0.3,4,20, -10,2,0, 0xe8dcc8);
+    addBox(0.3,4,20,  10,2,0, 0xe8dcc8);
+    // Mesas
+    for (let i=0; i<6; i++) {
+      const x = (Math.random()-0.5)*12, z = (Math.random()-0.5)*12;
+      addBox(0.8,0.75,0.8, x,0.37,z, 0x8B6914);
+      addBox(0.06,0.7,0.06, x-0.3,0.35,z-0.3, 0x6b5010);
+      addBox(0.06,0.7,0.06, x+0.3,0.35,z-0.3, 0x6b5010);
+      addBox(0.06,0.7,0.06, x-0.3,0.35,z+0.3, 0x6b5010);
+    }
+    // Mostrador
+    addBox(4,1.1,0.8, 0,0.55,-8, 0x7a5c2a);
+    scene.fog = new THREE.FogExp2(0xd4c0a0, 0.03);
+    scene.background = new THREE.Color(0xcab89a);
+
+  } else if (tipo === 'reunion') {
+    addBox(16,3,0.3, 0,1.5,-8, 0xddd0c0);
+    addBox(0.3,3,16, -8,1.5,0, 0xddd0c0);
+    addBox(0.3,3,16,  8,1.5,0, 0xddd0c0);
+    addBox(0.3,3,16,  0,1.5,8, 0xddd0c0);
+    // Mesa de reunión
+    addBox(5,0.08,2, 0,0.75,0, 0x5a4020);
+    for (let i=-2; i<=2; i++) {
+      addBox(0.5,0.75,0.5, i*1.2,0.37,-1.5, 0x3a3030);
+      addBox(0.5,0.75,0.5, i*1.2,0.37, 1.5, 0x3a3030);
+    }
+    scene.background = new THREE.Color(0xb0bec5);
+    scene.fog = new THREE.FogExp2(0xb0bec5, 0.04);
+
+  } else if (tipo === 'calle') {
+    // Acera
+    addBox(6,0.1,40, 0,0.05,0, 0xaaaaaa);
+    // Edificios
+    for (let i=-4; i<=4; i+=2) {
+      addBox(1.8, 6+Math.random()*8, 2, -5, (6+Math.random()*8)/2, i*3, 0xccc0aa);
+      addBox(1.8, 6+Math.random()*8, 2,  5, (6+Math.random()*8)/2, i*3, 0xbbaa99);
+    }
+    scene.background = new THREE.Color(0x87ceeb);
+    scene.fog = new THREE.FogExp2(0x87ceeb, 0.018);
+
+  } else if (tipo === 'sala') {
+    // Auditorio simple
+    addBox(20,6,0.3, 0,3,-10, 0xf0e8d8);
+    addBox(0.3,6,20, -10,3,0, 0xf0e8d8);
+    addBox(0.3,6,20,  10,3,0, 0xf0e8d8);
+    // Tarima
+    addBox(6,0.3,3, 0,0.15,-7, 0x8b6914);
+    // Sillas de público
+    for (let row=0; row<4; row++) {
+      for (let col=-3; col<=3; col++) {
+        addBox(0.5,0.5,0.5, col*1.2, 0.25, 2+row*1.4, 0x444466);
+      }
+    }
+    scene.background = new THREE.Color(0x2a2040);
+    scene.fog = new THREE.FogExp2(0x2a2040, 0.025);
+    // Foco
+    const spotlight = new THREE.SpotLight(0xffffff, 2, 20, Math.PI/6);
+    spotlight.position.set(0, 8, -5);
+    spotlight.target.position.set(0, 0, -7);
+    spotlight.userData.scenery = true;
+    scene.add(spotlight);
+    scene.add(spotlight.target);
+  }
+}
+
+// ── Avatares ─────────────────────────────────────────────────────
+function createAvatar(x, z, lookAtPlayer) {
+  const group = new THREE.Group();
+
+  const bodyColor = new THREE.Color().setHSL(Math.random(), 0.4, 0.5);
+  const skinColor = 0xf5c5a0;
+
+  // Cuerpo
+  const body = new THREE.Mesh(
+    new THREE.CapsuleGeometry ? new THREE.CapsuleGeometry(0.22, 0.8, 4, 8) : new THREE.CylinderGeometry(0.22,0.22,0.9,8),
+    new THREE.MeshLambertMaterial({ color: bodyColor })
+  );
+  body.position.y = 0.85;
+  group.add(body);
+
+  // Cabeza
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(0.2, 8, 8),
+    new THREE.MeshLambertMaterial({ color: skinColor })
+  );
+  head.position.y = 1.55;
+  group.add(head);
+
+  // Ojos (expresión)
+  [-0.07, 0.07].forEach(ex => {
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(0.03, 6, 6),
+      new THREE.MeshBasicMaterial({ color: 0x222222 })
+    );
+    eye.position.set(ex, 1.57, 0.18);
+    group.add(eye);
+  });
+
+  // Piernas
+  [-0.1, 0.1].forEach(lx => {
+    const leg = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.09, 0.09, 0.7, 8),
+      new THREE.MeshLambertMaterial({ color: 0x334466 })
+    );
+    leg.position.set(lx, 0.35, 0);
+    group.add(leg);
+  });
+
+  group.position.set(x, 0, z);
+  group.castShadow = true;
+
+  if (lookAtPlayer) {
+    group.lookAt(0, 1.65, 0);
+  } else {
+    group.rotation.y = Math.random() * Math.PI * 2;
+  }
+
+  group.userData = {
+    baseX: x, baseZ: z,
+    movePhase: Math.random() * Math.PI * 2,
+    lookAt: lookAtPlayer,
+    bobPhase: Math.random() * Math.PI * 2
+  };
+
+  scene.add(group);
+  avatars.push(group);
+}
+
+function spawnAvatars(count, minDist, contactPct) {
+  avatars.forEach(a => scene.remove(a));
+  avatars = [];
+
+  const contactCount = Math.floor(count * contactPct / 100);
+
+  for (let i = 0; i < count; i++) {
+    let x, z, attempts = 0;
+    do {
+      x = (Math.random() - 0.5) * 14;
+      z = (Math.random() - 0.5) * 14;
+      attempts++;
+    } while (Math.sqrt(x*x + z*z) < minDist && attempts < 30);
+
+    createAvatar(x, z, i < contactCount);
+  }
+}
+
+// ── Audio ambiental (Web Audio API) ─────────────────────────────
+let audioCtx, noiseNode, gainNode;
+
+function initAudio(volume) {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const bufferSize = audioCtx.sampleRate * 2;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.loop = true;
+
+    // Filtro pasa-bajas para simular murmullo
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 800;
+
+    gainNode = audioCtx.createGain();
+    gainNode.gain.value = volume / 100 * 0.15;
+
+    source.connect(filter);
+    filter.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+    source.start();
+    noiseNode = source;
+  } else if (gainNode) {
+    gainNode.gain.setTargetAtTime(volume / 100 * 0.15, audioCtx.currentTime, 0.5);
+  }
+}
+
+// ── Loop principal ───────────────────────────────────────────────
+function animate() {
+  renderer.setAnimationLoop(render);
+}
+
+function render() {
+  const delta = clock.getDelta();
+
+  if (sessionActive) {
+    sessionTimer += delta;
+    updateHUD();
+  }
+
+  // Animar avatares
+  avatars.forEach(av => {
+    av.userData.bobPhase += delta * 1.5;
+    av.userData.movePhase += delta * 0.3;
+    // Bob sutil (caminar en sitio)
+    av.position.y = Math.sin(av.userData.bobPhase) * 0.02;
+    // Deriva suave
+    av.position.x = av.userData.baseX + Math.sin(av.userData.movePhase) * 0.3;
+    av.position.z = av.userData.baseZ + Math.cos(av.userData.movePhase * 0.7) * 0.3;
+    // Mirar al jugador
+    if (av.userData.lookAt) {
+      const dx = -av.position.x, dz = -av.position.z;
+      av.rotation.y = Math.atan2(dx, dz);
+    }
+  });
+
+  renderer.render(scene, camera);
+}
+
+// ── HUD y controles en sesión ────────────────────────────────────
+function updateHUD() {
+  const mins = Math.floor(sessionTimer / 60);
+  const secs = Math.floor(sessionTimer % 60);
+  document.getElementById('hud-time').textContent = `${mins}:${secs.toString().padStart(2,'0')}`;
+  document.getElementById('hud-personas').textContent = avatars.length;
+
+  const level = suds < 30 ? 'Baja' : suds < 60 ? 'Moderada' : suds < 80 ? 'Alta' : 'Severa';
+  document.getElementById('hud-intensidad').textContent = level;
+  document.getElementById('intensity-fill').style.width = suds + '%';
+  document.getElementById('intensity-text').textContent = suds + ' / 100';
+}
+
+window.increaseIntensity = () => {
+  suds = Math.min(100, suds + 10);
+  params.personas = Math.min(20, params.personas + 2);
+  params.proximidad = Math.max(1, params.proximidad - 0.5);
+  spawnAvatars(params.personas, params.proximidad, params.contacto);
+  if (gainNode) gainNode.gain.setTargetAtTime(params.ruido / 100 * 0.2, audioCtx.currentTime, 0.5);
+};
+
+window.decreaseIntensity = () => {
+  suds = Math.max(0, suds - 10);
+  params.personas = Math.max(1, params.personas - 2);
+  params.proximidad = Math.min(8, params.proximidad + 0.5);
+  spawnAvatars(params.personas, params.proximidad, params.contacto);
+  if (gainNode) gainNode.gain.setTargetAtTime(params.ruido / 100 * 0.08, audioCtx.currentTime, 0.5);
+};
+
+window.endSession = () => {
+  sessionActive = false;
+  document.getElementById('scene-hud').classList.remove('visible');
+  document.getElementById('breathing-guide').classList.remove('visible');
+  document.getElementById('intensity-indicator').classList.remove('visible');
+  const overlay = document.getElementById('ui-overlay');
+  overlay.classList.remove('hidden');
+  sessionTimer = 0;
+  if (xrSession) { xrSession.end(); xrSession = null; }
+};
+
+// ── Guía de respiración ──────────────────────────────────────────
+let breathInterval;
+function startBreathing() {
+  const phases = ['INHALA', 'RETÉN', 'EXHALA', 'PAUSA'];
+  const times  = [4000, 2000, 6000, 2000];
+  let phase = 0;
+  const el = document.getElementById('breath-text');
+  const circle = document.getElementById('breath-circle');
+  const run = () => {
+    el.textContent = phases[phase];
+    circle.style.animation = phase === 0 ? 'breathe 4s ease-in forwards' :
+                             phase === 2 ? 'breathe 6s ease-out reverse forwards' : 'none';
+    breathInterval = setTimeout(() => { phase = (phase + 1) % 4; run(); }, times[phase]);
+  };
+  run();
+}
+
+// ── WebXR ────────────────────────────────────────────────────────
+async function enterVR() {
+  try {
+    xrSession = await navigator.xr.requestSession('immersive-vr', {
+      requiredFeatures: ['local-floor']
+    });
+    renderer.xr.setSession(xrSession);
+    xrSession.addEventListener('end', () => { xrSession = null; });
+  } catch(e) {
+    console.warn('VR no disponible:', e);
+  }
+}
+
+// ── Inicio de experiencia ────────────────────────────────────────
+window.startExperience = () => {
+  // Leer parámetros actuales
+  params.personas   = parseInt(document.getElementById('slider-personas').value);
+  params.proximidad = parseInt(document.getElementById('slider-prox').value);
+  params.ruido      = parseInt(document.getElementById('slider-ruido').value);
+  params.contacto   = parseInt(document.getElementById('slider-contacto').value);
+
+  suds = Math.round(params.personas * 2 + params.contacto * 0.3 + params.ruido * 0.2);
+  suds = Math.min(100, Math.max(5, suds));
+
+  // Rebuild escenario con parámetros actuales
+  buildScenario(params.escenario);
+  spawnAvatars(params.personas, params.proximidad, params.contacto);
+  initAudio(params.ruido);
+
+  // Mostrar HUD
+  document.getElementById('ui-overlay').classList.add('hidden');
+  document.getElementById('scene-hud').classList.add('visible');
+  document.getElementById('breathing-guide').classList.add('visible');
+  document.getElementById('intensity-indicator').classList.add('visible');
+  document.getElementById('hud-personas').textContent = params.personas;
+
+  sessionActive = true;
+  startBreathing();
+};
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ── Bootstrap ────────────────────────────────────────────────────
+initScene();
+animate();
+</script>
+</body>
+</html>
